@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Inventario Thomas</title>
-    <!-- Librería de códigos de barras y QR -->
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Librería de códigos con respaldo por si falla la red -->
+    <script src="https://unpkg.com/html5-qrcode" onerror="console.warn('Librería de cámara no disponible, modo manual activo');"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; margin: 0; padding: 12px; color: #333; }
         .container { max-width: 650px; margin: 0 auto; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -18,19 +18,15 @@
         .btn-export { background: #1a73e8; color: white; }
         .btn-import { background: #34a853; color: white; }
 
-        /* Botón de Escaneo Rápido */
-        .btn-scan-fast { width: 100%; background: #8e44ad; color: white; border: none; padding: 12px; font-size: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 14px; text-align: center; }
-        .btn-scan-fast:hover { background: #732d91; }
-
         /* Contenedor de la cámara */
         #reader-container { display: none; background: #000; padding: 10px; border-radius: 8px; margin-bottom: 14px; text-align: center; }
         #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 6px; overflow: hidden; }
         .btn-close-cam { background: #e74c3c; color: white; border: none; padding: 8px 14px; font-size: 13px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 8px; }
         
         /* Formulario */
-        .form-group { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-        input { padding: 11px; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; outline: none; flex: 1; min-width: 110px; }
+        .form-group { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 14px; border: 1px solid #eee; }
         .input-row { display: flex; gap: 8px; width: 100%; margin-bottom: 10px; }
+        input { padding: 11px; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; outline: none; flex: 1; min-width: 110px; background: white; }
         .btn-primary { background: #1a73e8; color: white; border: none; padding: 11px 16px; font-size: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; }
         .btn-scan-inline { background: #8e44ad; color: white; border: none; padding: 11px 14px; font-size: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         
@@ -77,21 +73,18 @@
         <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="importarTXT(event)">
     </div>
 
-    <!-- Botón de Escaneo Rápido para Vender -->
-    <button class="btn-scan-fast" onclick="abrirEscaneador('vender')">📷 Escanear Código para Venta Rápida</button>
-
-    <!-- Visor de la Cámara -->
+    <!-- Visor de la Cámara (Oculto por defecto) -->
     <div id="reader-container">
         <div id="reader"></div>
         <button class="btn-close-cam" onclick="detenerEscaneador()">❌ Cerrar Cámara</button>
     </div>
 
     <!-- Formulario Agregar Producto -->
-    <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 14px; border: 1px solid #eee;">
-        <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: bold; color: #1a73e8;">➕ Agregar Producto Nuevo:</p>
+    <div class="form-group">
+        <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: bold; color: #1a73e8;">➕ Agregar Producto:</p>
         <div class="input-row">
-            <input type="text" id="codigoProd" placeholder="Código de barras">
-            <button class="btn-scan-inline" onclick="abrirEscaneador('nuevo')" title="Escanear código">📷</button>
+            <input type="text" id="codigoProd" placeholder="Código (opcional)">
+            <button class="btn-scan-inline" onclick="abrirEscaneador()" title="Escanear código">📷</button>
         </div>
         <div class="input-row">
             <input type="text" id="nombreProd" placeholder="Nombre del producto">
@@ -133,67 +126,62 @@
 </div>
 
 <script>
-    let productos = JSON.parse(localStorage.getItem('inventario_portable_v3')) || [];
+    let productos = JSON.parse(localStorage.getItem('inventario_portable_v4')) || [];
     let letraSeleccionada = '';
     let html5QrCode = null;
-    let modoEscaneoActual = '';
 
     function guardarYRenderizar() {
-        localStorage.setItem('inventario_portable_v3', JSON.stringify(productos));
+        localStorage.setItem('inventario_portable_v4', JSON.stringify(productos));
         generarBotonesLetras();
         filtrarProductos();
         actualizarResumenVentas();
     }
 
-    // Funciones de Cámara / Código de Barras
-    function abrirEscaneador(modo) {
-        modoEscaneoActual = modo; // 'nuevo' o 'vender'
+    // Funciones de Cámara seguras (no bloquean si falla)
+    function abrirEscaneador() {
+        if (typeof Html5Qrcode === 'undefined') {
+            alert("El lector de códigos por cámara no está disponible en este navegador. Puedes escribir el código o nombre manualmente.");
+            return;
+        }
         let container = document.getElementById('reader-container');
         container.style.display = 'block';
 
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("reader");
-        }
-
-        html5QrCode.start(
-            { facingMode: "environment" },
-            { fps: 10, qrbox: { width: 250, height: 120 } },
-            (decodedText) => {
-                detenerEscaneador();
-                procesarCodigoLeido(decodedText);
-            },
-            (errorMessage) => {
-                // Errores de lectura por frame (se ignoran para que siga buscando)
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
             }
-        ).catch(err => {
-            alert("No se pudo acceder a la cámara. Asegúrate de dar permisos en tu navegador.");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 120 } },
+                (decodedText) => {
+                    detenerEscaneador();
+                    document.getElementById('codigoProd').value = decodedText;
+                    alert(`¡Código escaneado: ${decodedText}!`);
+                },
+                (errorMessage) => {}
+            ).catch(err => {
+                container.style.display = 'none';
+                alert("No se pudo iniciar la cámara. Verifica los permisos del navegador.");
+            });
+        } catch (e) {
             container.style.display = 'none';
-        });
+            alert("Error al intentar abrir la cámara.");
+        }
     }
 
     function detenerEscaneador() {
-        if (html5QrCode && html5QrCode.isScanning) {
-            html5QrCode.stop().then(() => {
-                document.getElementById('reader-container').style.display = 'none';
-            }).catch(() => {
-                document.getElementById('reader-container').style.display = 'none';
-            });
-        } else {
-            document.getElementById('reader-container').style.display = 'none';
-        }
-    }
-
-    function procesarCodigoLeido(codigo) {
-        if (modoEscaneoActual === 'nuevo') {
-            document.getElementById('codigoProd').value = codigo;
-            alert(`¡Código escaneado: ${codigo}!`);
-        } else if (modoEscaneoActual === 'vender') {
-            let p = productos.find(item => item.codigo === codigo);
-            if (p) {
-                venderProducto(p.id);
+        try {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('reader-container').style.display = 'none';
+                }).catch(() => {
+                    document.getElementById('reader-container').style.display = 'none';
+                });
             } else {
-                alert(`El código "${codigo}" no está registrado en ningún producto.`);
+                document.getElementById('reader-container').style.display = 'none';
             }
+        } catch (e) {
+            document.getElementById('reader-container').style.display = 'none';
         }
     }
 
@@ -202,8 +190,12 @@
         let nombre = document.getElementById('nombreProd').value.trim();
         let cantidad = parseInt(document.getElementById('cantProd').value);
 
-        if (!nombre || isNaN(cantidad) || cantidad <= 0) {
-            alert('Ingresa al menos un nombre de producto válido y una cantidad mayor a 0.');
+        if (!nombre) {
+            alert('Por favor ingresa el nombre del producto.');
+            return;
+        }
+        if (isNaN(cantidad) || cantidad <= 0) {
+            alert('Ingresa una cantidad válida mayor a 0.');
             return;
         }
 
@@ -431,4 +423,12 @@
                     if (Array.isArray(datosCargados)) {
                         productos = datosCargados;
                         guardarYRenderizar();
-                        alert("¡Inventario cargado con éxito!"
+                        alert("¡Inventario cargado con éxito!");
+                    } else {
+                        alert("El formato de datos dentro del TXT no es válido.");
+                    }
+                } catch (err) {
+                    alert("Error al leer los datos del archivo TXT.");
+                }
+            } else {
+                alert("Este archivo TXT no contiene datos válidos de respaldo de 
