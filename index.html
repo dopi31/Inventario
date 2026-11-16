@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Inventario Portable</title>
+    <title>Control de Inventario Thomas</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; margin: 0; padding: 12px; color: #333; }
         .container { max-width: 650px; margin: 0 auto; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -28,7 +28,7 @@
         .letter-btn.active { background: #1a73e8; color: white; }
         
         /* Tabla */
-        .table-wrapper { overflow-x: auto; }
+        .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { padding: 10px 4px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; color: #555; font-size: 13px; }
@@ -41,6 +41,14 @@
         .btn-venta { background: #e74c3c; }
         .btn-undo { background: #f39c12; }
         .btn-del { background: #7f8c8d; }
+
+        /* Sección de Ventas del Día (Separada y más abajo) */
+        .daily-sales-section { margin-top: 25px; border-top: 2px dashed #ddd; padding-top: 18px; }
+        .daily-sales-section h3 { color: #2c3e50; font-size: 18px; margin-bottom: 10px; text-align: center; }
+        .sales-summary-box { background: #fdfefe; border: 1px solid #dcdde1; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
+        .sales-summary-box p { margin: 6px 0; display: flex; justify-content: space-between; }
+        .btn-close-day { width: 100%; background: #e67e22; color: white; border: none; padding: 12px; font-size: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-close-day:hover { background: #d35400; }
     </style>
 </head>
 <body>
@@ -84,16 +92,26 @@
             <tbody id="tablaInventario"></tbody>
         </table>
     </div>
+
+    <!-- SECCIÓN DE VENTAS DEL DÍA (Más abajo y separada) -->
+    <div class="daily-sales-section">
+        <h3>📊 Resumen de Ventas del Día</h3>
+        <div class="sales-summary-box" id="resumenVentasDia">
+            <!-- Se llena dinámicamente -->
+        </div>
+        <button class="btn-close-day" onclick="cerrarDia()">🔄 Cerrar Día (Reiniciar Ventas y Actualizar Inicial)</button>
+    </div>
 </div>
 
 <script>
-    let productos = JSON.parse(localStorage.getItem('inventario_portable_v1')) || [];
+    let productos = JSON.parse(localStorage.getItem('inventario_portable_v2')) || [];
     let letraSeleccionada = '';
 
     function guardarYRenderizar() {
-        localStorage.setItem('inventario_portable_v1', JSON.stringify(productos));
+        localStorage.setItem('inventario_portable_v2', JSON.stringify(productos));
         generarBotonesLetras();
         filtrarProductos();
+        actualizarResumenVentas();
     }
 
     function agregarProducto() {
@@ -188,6 +206,22 @@
         }
     }
 
+    function cerrarDia() {
+        if (productos.length === 0) {
+            alert("No hay productos en el inventario.");
+            return;
+        }
+        let confirmacion = confirm("¿Estás seguro de cerrar el día?\nEsto pondrá las ventas a 0 y el stock final pasará a ser la nueva cantidad inicial para todos los productos.");
+        if (!confirmacion) return;
+
+        productos.forEach(p => {
+            p.inicial = p.final;
+            p.vendida = 0;
+        });
+        guardarYRenderizar();
+        alert("¡Día cerrado con éxito! Las ventas se reiniciaron y el stock actual es la nueva base inicial.");
+    }
+
     function seleccionarLetra(letra) {
         letraSeleccionada = (letraSeleccionada === letra) ? '' : letra;
         generarBotonesLetras();
@@ -232,6 +266,104 @@
                 <td>${p.inicial}</td>
                 <td style="color:#e74c3c; font-weight:bold;">-${p.vendida}</td>
                 <td><span class="stock-badge">${p.final}</span></td>
+                <td class="actions">
+                    <button class="btn-act btn-add" title="Agregar más stock" onclick="agregarMasStock(${p.id})">+Stock</button>
+                    <button class="btn-act btn-venta" title="Registrar venta" onclick="venderProducto(${p.id})">Vender</button>
+                    <button class="btn-act btn-undo" title="Borrar/corregir venta" onclick="corregirVenta(${p.id})">-Venta</button>
+                    <button class="btn-act btn-del" title="Eliminar producto" onclick="eliminarProducto(${p.id})">X</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function actualizarResumenVentas() {
+        let contenedor = document.getElementById('resumenVentasDia');
+        if (productos.length === 0) {
+            contenedor.innerHTML = `<p style="text-align:center; color:#666; margin:0;">No hay datos de ventas hoy.</p>`;
+            return;
+        }
+
+        let totalVendidos = productos.reduce((sum, p) => sum + p.vendida, 0);
+        let conVentas = productos.filter(p => p.vendida > 0);
+
+        let html = `<p><strong>Total de unidades vendidas hoy:</strong> <span style="color:#e74c3c; font-weight:bold;">${totalVendidos}</span></p>`;
+        if (conVentas.length > 0) {
+            html += `<p style="margin-top:8px; font-weight:bold; color:#555;">Detalle por producto:</p><ul style="margin:4px 0 0 20px; padding:0; color:#444; font-size:13px;">`;
+            conVentas.forEach(p => {
+                html += `<li>${p.nombre}: <strong>${p.vendida}</strong> vendidas (Quedan ${p.final})</li>`;
+            });
+            html += `</ul>`;
+        } else {
+            html += `<p style="color:#888; font-size:13px; margin:4px 0 0 0;">Aún no se han registrado ventas hoy.</p>`;
+        }
+        contenedor.innerHTML = html;
+    }
+
+    function exportarTXT() {
+        if (productos.length === 0) {
+            alert("No hay productos en el inventario para guardar.");
+            return;
+        }
+        let fecha = new Date().toLocaleDateString('es-PE').replace(/\//g, '-');
+        let contenido = "=== INVENTARIO DE PRODUCTOS (THOMAS) ===\n";
+        contenido += "Fecha: " + new Date().toLocaleString('es-PE') + "\n";
+        contenido += "--------------------------------------\n";
+        productos.forEach(p => {
+            contenido += `Producto: ${p.nombre} | Inicial: ${p.inicial} | Vendida: ${p.vendida} | Final: ${p.final}\n`;
+        });
+        contenido += "--------------------------------------\n";
+        contenido += "DATOS_SISTEMA:" + JSON.stringify(productos);
+
+        let blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = `inventario_${fecha}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function importarTXT(event) {
+        let archivo = event.target.files[0];
+        if (!archivo) return;
+
+        let lector = new FileReader();
+        lector.onload = function(e) {
+            let texto = e.target.result;
+            let marcador = "DATOS_SISTEMA:";
+            let indice = texto.indexOf(marcador);
+
+            if (indice !== -1) {
+                try {
+                    let jsonStr = texto.substring(indice + marcador.length).trim();
+                    let datosCargados = JSON.parse(jsonStr);
+                    if (Array.isArray(datosCargados)) {
+                        productos = datosCargados;
+                        guardarYRenderizar();
+                        alert("¡Inventario cargado con éxito!");
+                    } else {
+                        alert("El formato de datos dentro del TXT no es válido.");
+                    }
+                } catch (err) {
+                    alert("Error al leer los datos del archivo TXT.");
+                }
+            } else {
+                alert("Este archivo TXT no contiene datos válidos de respaldo de este sistema.");
+            }
+            event.target.value = '';
+        };
+        lector.readAsText(archivo);
+    }
+
+    guardarYRenderizar();
+</script>
+
+</body>
+</html>
+/td>
                 <td class="actions">
                     <button class="btn-act btn-add" title="Agregar más stock" onclick="agregarMasStock(${p.id})">+Stock</button>
                     <button class="btn-act btn-venta" title="Registrar venta" onclick="venderProducto(${p.id})">Vender</button>
