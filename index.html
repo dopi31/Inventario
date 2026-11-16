@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Inventario Portable</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; margin: 0; padding: 12px; color: #333; }
+        .container { max-width: 650px; margin: 0 auto; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: #1a73e8; margin: 0 0 15px 0; font-size: 22px; }
+        
+        /* Barra de Respaldo TXT */
+        .backup-bar { display: flex; gap: 8px; background: #e8f0fe; padding: 10px; border-radius: 8px; margin-bottom: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .backup-bar span { font-size: 13px; color: #1a73e8; font-weight: bold; width: 100%; margin-bottom: 4px; }
+        .btn-backup { flex: 1; padding: 10px; font-size: 14px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-export { background: #1a73e8; color: white; }
+        .btn-import { background: #34a853; color: white; }
+        
+        /* Formulario */
+        .form-group { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        input { padding: 11px; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; outline: none; flex: 1; min-width: 110px; }
+        .btn-primary { background: #1a73e8; color: white; border: none; padding: 11px 16px; font-size: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        
+        /* Buscador y Filtros */
+        .search-box { width: 100%; margin-bottom: 10px; box-sizing: border-box; background: #fafafa; }
+        .letter-filter { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; justify-content: center; }
+        .letter-btn { background: #e8f0fe; color: #1a73e8; padding: 6px 10px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+        .letter-btn.active { background: #1a73e8; color: white; }
+        
+        /* Tabla */
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { padding: 10px 4px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #555; font-size: 13px; }
+        .stock-badge { font-weight: bold; color: #27ae60; font-size: 15px; }
+        
+        /* Botones de Acción */
+        .actions { display: flex; gap: 4px; flex-wrap: wrap; }
+        .btn-act { padding: 6px 8px; font-size: 12px; border-radius: 6px; border: none; color: white; font-weight: bold; cursor: pointer; }
+        .btn-add { background: #27ae60; }
+        .btn-venta { background: #e74c3c; }
+        .btn-undo { background: #f39c12; }
+        .btn-del { background: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📦 Control de Inventario</h2>
+
+    <!-- Sección Guardar / Cargar TXT -->
+    <div class="backup-bar">
+        <span>💾 Respaldo en TXT (para llevar a otro celular):</span>
+        <button class="btn-backup btn-export" onclick="exportarTXT()">⬇️ Guardar en TXT</button>
+        <button class="btn-backup btn-import" onclick="document.getElementById('fileInput').click()">⬆️ Cargar TXT</button>
+        <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="importarTXT(event)">
+    </div>
+
+    <!-- Formulario Agregar Producto -->
+    <div class="form-group">
+        <input type="text" id="nombreProd" placeholder="Nombre del producto">
+        <input type="number" id="cantProd" placeholder="Cantidad" style="max-width: 95px;" min="1">
+        <button class="btn-primary" onclick="agregarProducto()">Agregar</button>
+    </div>
+
+    <!-- Buscador -->
+    <input type="text" id="buscador" class="search-box" placeholder="🔍 Buscar producto..." onkeyup="filtrarProductos()">
+
+    <!-- Filtro por primera letra -->
+    <div class="letter-filter" id="filtroLetras"></div>
+
+    <!-- Tabla -->
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Inic.</th>
+                    <th>Vend.</th>
+                    <th>Final</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tablaInventario"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let productos = JSON.parse(localStorage.getItem('inventario_portable_v1')) || [];
+    let letraSeleccionada = '';
+
+    function guardarYRenderizar() {
+        localStorage.setItem('inventario_portable_v1', JSON.stringify(productos));
+        generarBotonesLetras();
+        filtrarProductos();
+    }
+
+    function agregarProducto() {
+        let nombre = document.getElementById('nombreProd').value.trim();
+        let cantidad = parseInt(document.getElementById('cantProd').value);
+
+        if (!nombre || isNaN(cantidad) || cantidad <= 0) {
+            alert('Ingresa un nombre válido y una cantidad mayor a 0.');
+            return;
+        }
+
+        let existente = productos.find(p => p.nombre.toLowerCase() === nombre.toLowerCase());
+        if (existente) {
+            existente.inicial += cantidad;
+            existente.final += cantidad;
+        } else {
+            productos.push({
+                id: Date.now(),
+                nombre: nombre,
+                inicial: cantidad,
+                vendida: 0,
+                final: cantidad
+            });
+        }
+
+        document.getElementById('nombreProd').value = '';
+        document.getElementById('cantProd').value = '';
+        guardarYRenderizar();
+    }
+
+    function agregarMasStock(id) {
+        let p = productos.find(item => item.id === id);
+        if (!p) return;
+        let extra = prompt(`¿Cuántas unidades agregar a "${p.nombre}"?`, "1");
+        if (extra === null) return;
+        extra = parseInt(extra);
+        if (!isNaN(extra) && extra > 0) {
+            p.inicial += extra;
+            p.final += extra;
+            guardarYRenderizar();
+        } else {
+            alert("Ingresa un número válido mayor a 0.");
+        }
+    }
+
+    function venderProducto(id) {
+        let p = productos.find(item => item.id === id);
+        if (!p) return;
+        let venta = prompt(`¿Cuántos "${p.nombre}" vendiste?`, "1");
+        if (venta === null) return;
+        venta = parseInt(venta);
+        if (!isNaN(venta) && venta > 0) {
+            if (venta > p.final) {
+                alert(`No puedes vender más del stock final (${p.final}).`);
+                return;
+            }
+            p.vendida += venta;
+            p.final -= venta;
+            guardarYRenderizar();
+        } else {
+            alert("Ingresa un número válido mayor a 0.");
+        }
+    }
+
+    function corregirVenta(id) {
+        let p = productos.find(item => item.id === id);
+        if (!p) return;
+        if (p.vendida === 0) {
+            alert("Este producto no tiene ventas registradas para borrar.");
+            return;
+        }
+        let devolucion = prompt(`Tienes ${p.vendida} vendidos de "${p.nombre}".\n¿Cuántas unidades vendidas deseas borrar/devolver al stock?`, p.vendida);
+        if (devolucion === null) return;
+        devolucion = parseInt(devolucion);
+        if (!isNaN(devolucion) && devolucion > 0) {
+            if (devolucion > p.vendida) {
+                alert(`No puedes borrar más de las unidades vendidas (${p.vendida}).`);
+                return;
+            }
+            p.vendida -= devolucion;
+            p.final += devolucion;
+            guardarYRenderizar();
+        } else {
+            alert("Ingresa un número válido mayor a 0.");
+        }
+    }
+
+    function eliminarProducto(id) {
+        if (confirm("¿Eliminar este producto por completo?")) {
+            productos = productos.filter(item => item.id !== id);
+            guardarYRenderizar();
+        }
+    }
+
+    function seleccionarLetra(letra) {
+        letraSeleccionada = (letraSeleccionada === letra) ? '' : letra;
+        generarBotonesLetras();
+        filtrarProductos();
+    }
+
+    function generarBotonesLetras() {
+        let contenedor = document.getElementById('filtroLetras');
+        let letras = [...new Set(productos.map(p => p.nombre.charAt(0).toUpperCase()))].sort();
+        if (letras.length === 0) {
+            contenedor.innerHTML = '';
+            return;
+        }
+        let html = `<button class="letter-btn ${letraSeleccionada === '' ? 'active' : ''}" onclick="seleccionarLetra('')">Todos</button>`;
+        letras.forEach(l => {
+            html += `<button class="letter-btn ${letraSeleccionada === l ? 'active' : ''}" onclick="seleccionarLetra('${l}')">${l}</button>`;
+        });
+        contenedor.innerHTML = html;
+    }
+
+    function filtrarProductos() {
+        let texto = document.getElementById('buscador').value.toLowerCase();
+        let filtrados = productos.filter(p => {
+            let coincideTexto = p.nombre.toLowerCase().includes(texto);
+            let coincideLetra = letraSeleccionada === '' || p.nombre.charAt(0).toUpperCase() === letraSeleccionada;
+            return coincideTexto && coincideLetra;
+        });
+        renderizarTabla(filtrados);
+    }
+
+    function renderizarTabla(lista) {
+        let tbody = document.getElementById('tablaInventario');
+        tbody.innerHTML = '';
+        if (lista.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#888; padding: 15px;">No hay productos registrados</td></tr>`;
+            return;
+        }
+        lista.forEach(p => {
+            let tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${p.nombre}</strong></td>
+                <td>${p.inicial}</td>
+                <td style="color:#e74c3c; font-weight:bold;">-${p.vendida}</td>
+                <td><span class="stock-badge">${p.final}</span></td>
+                <td class="actions">
+                    <button class="btn-act btn-add" title="Agregar más stock" onclick="agregarMasStock(${p.id})">+Stock</button>
+                    <button class="btn-act btn-venta" title="Registrar venta" onclick="venderProducto(${p.id})">Vender</button>
+                    <button class="btn-act btn-undo" title="Borrar/corregir venta" onclick="corregirVenta(${p.id})">-Venta</button>
+                    <button class="btn-act btn-del" title="Eliminar producto" onclick="eliminarProducto(${p.id})">X</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Exportar a archivo .txt legible y estructurado
+    function exportarTXT() {
+        if (productos.length === 0) {
+            alert("No hay productos en el inventario para guardar.");
+            return;
+        }
+        let fecha = new Date().toLocaleDateString('es-PE').replace(/\//g, '-');
+        let contenido = "=== INVENTARIO DE PRODUCTOS ===\n";
+        contenido += "Fecha: " + new Date().toLocaleString('es-PE') + "\n";
+        contenido += "-------------------------------\n";
+        productos.forEach(p => {
+            contenido += `Producto: ${p.nombre} | Inicial: ${p.inicial} | Vendida: ${p.vendida} | Final: ${p.final}\n`;
+        });
+        contenido += "-------------------------------\n";
+        contenido += "DATOS_SISTEMA:" + JSON.stringify(productos);
+
+        let blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = `inventario_${fecha}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Importar desde archivo .txt
+    function importarTXT(event) {
+        let archivo = event.target.files[0];
+        if (!archivo) return;
+
+        let lector = new FileReader();
+        lector.onload = function(e) {
+            let texto = e.target.result;
+            let marcador = "DATOS_SISTEMA:";
+            let indice = texto.indexOf(marcador);
+
+            if (indice !== -1) {
+                try {
+                    let jsonStr = texto.substring(indice + marcador.length).trim();
+                    let datosCargados = JSON.parse(jsonStr);
+                    if (Array.isArray(datosCargados)) {
+                        productos = datosCargados;
+                        guardarYRenderizar();
+                        alert("¡Inventario cargado con éxito!");
+                    } else {
+                        alert("El formato de datos dentro del TXT no es válido.");
+                    }
+                } catch (err) {
+                    alert("Error al leer los datos del archivo TXT.");
+                }
+            } else {
+                alert("Este archivo TXT no contiene datos válidos de respaldo de este sistema.");
+            }
+            event.target.value = '';
+        };
+        lector.readAsText(archivo);
+    }
+
+    guardarYRenderizar();
+</script>
+
+</body>
+</html>
