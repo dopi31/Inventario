@@ -171,11 +171,11 @@
                 (texto) => {
                     let productoEncontrado = productos.find(p => p.codigo === texto)
 
-                    if(productoEncontrado){
+                    if(productoEncontrado && productoEncontrado > 0){
                         productoEncontrado.vendida += 1;
                         productoEncontrado.final -= 1;
-                        detener();
                         guardarYRenderizar();
+                        detener();
                     }else{
                         document.getElementById('error').innerText = `❌ El código ${texto} no está registrado en el inventario.`;
                     }
