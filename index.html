@@ -432,3 +432,34 @@
 
         let lector = new FileReader();
         lector.onload = function(e) {
+            let texto = e.target.result;
+            let marcador = "DATOS_SISTEMA:";
+            let indice = texto.indexOf(marcador);
+
+            if (indice !== -1) {
+                try {
+                    let jsonStr = texto.substring(indice + marcador.length).trim();
+                    let datosCargados = JSON.parse(jsonStr);
+                    if (Array.isArray(datosCargados)) {
+                        productos = datosCargados;
+                        guardarYRenderizar();
+                        alert("¡Inventario cargado con éxito!");
+                    } else {
+                        alert("El formato de datos dentro del TXT no es válido.");
+                    }
+                } catch (err) {
+                    alert("Error al leer los datos del archivo TXT.");
+                }
+            } else {
+                alert("Este archivo TXT no contiene datos válidos de respaldo de este sistema.");
+            }
+            event.target.value = '';
+        };
+        lector.readAsText(archivo);
+    }
+
+    guardarYRenderizar();
+</script>
+
+</body>
+    </html>
