@@ -175,6 +175,7 @@
                         productoEncontrado.vendida += 1;
                         productoEncontrado.final -= 1;
                         guardarYRenderizar();
+                        detener();
                     }else{
                         document.getElementById('error').innerText = `❌ El código ${texto} no está registrado en el inventario.`;
                     }
@@ -207,7 +208,7 @@
         let nombre = document.getElementById('nombreProd').value.trim();
         let cantidad = parseInt(document.getElementById('cantProd').value);
 
-        if (!codProd || !nombre || isNaN(cantidad) || cantidad <= 0) {
+        if (!codigo || !nombre || isNaN(cantidad) || cantidad <= 0) {
             alert('Ingresa el código, un nombre válido y una cantidad mayor a 0.');
             return;
         }
