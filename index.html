@@ -175,7 +175,14 @@
                         productoEncontrado.vendida += 1;
                         productoEncontrado.final -= 1;
                         guardarYRenderizar();
-                        detener();
+
+                        html5QrCode.stop().then(() => {
+                            document.getElementById('btnIniciar').style.display = "inline-block";
+                            document.getElementById('btnDetener').style.display = "none";
+                            document.getElementById('reader').innerHTML = ""; // Limpia el cuadro de video
+                        }).catch((err) => {
+                            console.log("Error al detener: ", err);
+                        });
                     }else{
                         document.getElementById('error').innerText = `❌ El código ${texto} no está registrado en el inventario.`;
                     }
