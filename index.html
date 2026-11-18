@@ -170,12 +170,14 @@
                 { fps: 10, qrbox: { width: 250, height: 150 } },
                 (texto) => {
                     let productoEncontrado = productos.find(p => p.codigo === texto);
-
-                    if(productoEncontrado && productoEncontrado > 0){
-                        productoEncontrado.vendida += 1;
+                    if(productoEncontrado){
+  if(productoEncontrado.final > 0){                    productoEncontrado.vendida += 1;
                         productoEncontrado.final -= 1;
                         guardarYRenderizar();
                         detener();
+}else{
+  document.getElementById('resultado').innerText = 'El producto no tiene stock';
+}
                     }else{
                         document.getElementById('error').innerText = `❌ El código ${texto} no está registrado en el inventario.`;
                     }
@@ -197,7 +199,7 @@
                     document.getElementById('btnIniciar').style.display = "inline-block";
                     document.getElementById('btnDetener').style.display = "none";
                     document.getElementById('resultado').innerText = "";
-
+                    document.getElementById('error'). innerText = "";
                 });
             }
         }
@@ -430,34 +432,3 @@
 
         let lector = new FileReader();
         lector.onload = function(e) {
-            let texto = e.target.result;
-            let marcador = "DATOS_SISTEMA:";
-            let indice = texto.indexOf(marcador);
-
-            if (indice !== -1) {
-                try {
-                    let jsonStr = texto.substring(indice + marcador.length).trim();
-                    let datosCargados = JSON.parse(jsonStr);
-                    if (Array.isArray(datosCargados)) {
-                        productos = datosCargados;
-                        guardarYRenderizar();
-                        alert("¡Inventario cargado con éxito!");
-                    } else {
-                        alert("El formato de datos dentro del TXT no es válido.");
-                    }
-                } catch (err) {
-                    alert("Error al leer los datos del archivo TXT.");
-                }
-            } else {
-                alert("Este archivo TXT no contiene datos válidos de respaldo de este sistema.");
-            }
-            event.target.value = '';
-        };
-        lector.readAsText(archivo);
-    }
-
-    guardarYRenderizar();
-</script>
-
-</body>
-    </html>
