@@ -15,10 +15,19 @@
         .btn-backup { flex: 1; padding: 10px; font-size: 14px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; text-align: center; }
         .btn-export { background: #1a73e8; color: white; }
         .btn-import { background: #34a853; color: white; }
+
+        /* Barra lector barras */
+        .escaner { display: flex; gap: 8px; background: #e8f0fe; padding: 10px; border-radius: 8px; margin-bottom: 16px; justify-content: center; align-items: center; }
+        button { background: #27ae60; color: white; border: none; padding: 15px 25px; font-size: 16px; border-radius: 10px; font-weight: bold; cursor: pointer; margin: 10px 0;}
+        button.stop { background: #e74c3c; display: none; }
+        #reader { width: 100%; max-width: 400px; margin: 15px auto; border-radius: 10px; overflow: hidden; background: #000; }
+        #resultado { font-size: 18px; color: #2ecc71; font-weight: bold; margin-top: 15px; word-break: break-all; }
+        #error { font-size: 14px; color: #ff6b6b; margin-top: 10px; }
         
         /* Formulario */
         .form-group { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
         input { padding: 11px; font-size: 15px; border: 1px solid #ccc; border-radius: 8px; outline: none; flex: 1; min-width: 110px; }
+        #codProd {flex: 0 100%;}
         .btn-primary { background: #1a73e8; color: white; border: none; padding: 11px 16px; font-size: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         
         /* Buscador y Filtros */
@@ -64,10 +73,20 @@
         <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="importarTXT(event)">
     </div>
 
+    <!-- Sección Scanner barras -->
+     <div class="escaner">
+        <button id="btnIniciar" onclick="iniciar()">Encender Cámara</button>
+        <button id="btnDetener" class="stop" onclick="detener()">Apagar Cámara</button>
+     </div>
+     <div id="reader"></div>
+     <div id="resultado"></div>
+     <div id="error"></div>
+
     <!-- Formulario Agregar Producto -->
     <div class="form-group">
+        <input type="text" id="codProd" placeholder="Codigo de barras">
         <input type="text" id="nombreProd" placeholder="Nombre del producto">
-        <input type="number" id="cantProd" placeholder="Cantidad" style="max-width: 95px;" min="1">
+        <input type="number" id="cantProd" placeholder="Cantidad" style="max-width: 100px;" min="1">
         <button class="btn-primary" onclick="agregarProducto()">Agregar</button>
     </div>
 
@@ -103,9 +122,11 @@
     </div>
 </div>
 
+<script src="https://unpkg.com/html5-qrcode"></script>
 <script>
     let productos = JSON.parse(localStorage.getItem('inventario_portable_v2')) || [];
     let letraSeleccionada = '';
+    let html5QrCode;
 
     function guardarYRenderizar() {
         localStorage.setItem('inventario_portable_v2', JSON.stringify(productos));
@@ -114,22 +135,65 @@
         actualizarResumenVentas();
     }
 
+    function iniciar() {
+            document.getElementById('error').innerText = "";
+            document.getElementById('resultado').innerText = "Abriendo cámara...";
+            
+            html5QrCode = new Html5Qrcode("reader");
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 150 } },
+                (texto) => {
+                    document.getElementById('codProd').value = texto;
+                },
+                (err) => {}
+            ).then(() => {
+                document.getElementById('resultado').innerText = "Apunta a un código de barras...";
+                document.getElementById('btnIniciar').style.display = "none";
+                document.getElementById('btnDetener').style.display = "inline-block";
+            }).catch((err) => {
+                document.getElementById('resultado').value = "";
+                document.getElementById('error').innerText = "❌ Error: " + err;
+            });
+        }
+
+        function detener() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('btnIniciar').style.display = "inline-block";
+                    document.getElementById('btnDetener').style.display = "none";
+                    document.getElementById('resultado').innerText = "";
+
+                });
+            }
+        }
+
+
     function agregarProducto() {
+        let codProd = document.getElementById('codProd').value.trim();
         let nombre = document.getElementById('nombreProd').value.trim();
         let cantidad = parseInt(document.getElementById('cantProd').value);
 
-        if (!nombre || isNaN(cantidad) || cantidad <= 0) {
-            alert('Ingresa un nombre válido y una cantidad mayor a 0.');
+        if (!codProd || !nombre || isNaN(cantidad) || cantidad <= 0) {
+            alert('Ingresa el código, un nombre válido y una cantidad mayor a 0.');
             return;
         }
 
-        let existente = productos.find(p => p.nombre.toLowerCase() === nombre.toLowerCase());
+       // Buscamos si ya existe el producto por su código de barras o por su nombre
+        let existente = productos.find(p => p.codigo === codProd || p.nombre.toLowerCase() === nombre.toLowerCase());
+        
         if (existente) {
+            // Si ya existe, le sumamos a la cantidad inicial y final
             existente.inicial += cantidad;
             existente.final += cantidad;
+            // Opcional: nos aseguramos de actualizar el código por si acaso
+            existente.codigo = codProd; 
         } else {
+            // Si es nuevo, lo creamos incluyendo la propiedad 'codigo'
             productos.push({
                 id: Date.now(),
+                codigo: codProd, // <-- ¡Aquí guardamos el código escaneado o escrito!
                 nombre: nombre,
                 inicial: cantidad,
                 vendida: 0,
@@ -137,8 +201,11 @@
             });
         }
 
+        // Limpiamos todos los campos del formulario, incluyendo el código
+        document.getElementById('codProd').value = '';
         document.getElementById('nombreProd').value = '';
         document.getElementById('cantProd').value = '';
+        
         guardarYRenderizar();
     }
 
