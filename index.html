@@ -159,6 +159,36 @@
             });
         }
 
+        function sonarBeep(tipo = "ok") {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (tipo === "ok") {
+                    // Bip agudo y corto tipo escáner
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(1050, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.12);
+                } else {
+                    // Tono más grave si no existe o sin stock
+                    osc.type = "sawtooth";
+                    osc.frequency.setValueAtTime(240, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.25);
+                }
+            } catch (e) {
+                // Si el navegador bloquea el audio, no rompe el escáner
+            }
+        }
+
         function vender() {
             document.getElementById('error').innerText = "";
             document.getElementById('resultado').innerText = "Abriendo cámara...";
@@ -171,14 +201,18 @@
                 (texto) => {
                     let productoEncontrado = productos.find(p => p.codigo === texto);
                     if(productoEncontrado){
-  if(productoEncontrado.final > 0){                    productoEncontrado.vendida += 1;
-                        productoEncontrado.final -= 1;
-                        guardarYRenderizar();
-                        detener();
-}else{
-  document.getElementById('resultado').innerText = 'El producto no tiene stock';
-}
+                        if(productoEncontrado.final > 0){
+                            sonarBeep("ok");                
+                            productoEncontrado.vendida += 1;
+                            productoEncontrado.final -= 1;
+                            guardarYRenderizar();
+                            detener();
+                        }else{
+
+                            document.getElementById('resultado').innerText = 'El producto no tiene stock';
+                        }
                     }else{
+                        sonarBeep("error");
                         document.getElementById('error').innerText = `❌ El código ${texto} no está registrado en el inventario.`;
                     }
                 },
@@ -189,6 +223,7 @@
                 document.getElementById('btnDetener').style.display = "inline-block";
             }).catch((err) => {
                 document.getElementById('resultado').innerText = "";
+                sonarBeep("error");
                 document.getElementById('error').innerText = "❌ Error: " + err;
             });
         }
